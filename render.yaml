@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: axiom-exfiltration-server
+    runtime: node
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO_NAME
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: DB_USER
+        fromDatabase:
+          name: axiom-exfiltration-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: axiom-exfiltration-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: axiom-exfiltration-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: axiom-exfiltration-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: axiom-exfiltration-db
+          property: database
+
+databases:
+  - name: axiom-exfiltration-db
+    plan: free

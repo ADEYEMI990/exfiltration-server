@@ -1,0 +1,5 @@
+echo "node_modules/
+.env
+exfiltration.db
+*.log" > .gitignore
+node_modules/ - This directory contains all the installed dependencies for the project. It can be very large and is not necessary to include in version control since it can be regenerated using package.json. 

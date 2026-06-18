@@ -120,12 +120,12 @@ app.get('/collect-pixel', async (req, res) => {
     console.log(`🕒 Time: ${timestamp.toLocaleString()}`);
     console.log(`🌐 IP: ${ip}`);
     console.log(`🔗 Referrer: ${r || 'N/A'}`);
-    console.log(`🔄 Redirect: ${redirect ? 'Yes' : 'No'}`);
+    console.log(`🔄 Redirect URL: ${redirect || 'None'}`);
     
     if (!d) {
         console.log('❌ No data parameter received');
-        // If there's a redirect, go back even on error
         if (redirect) {
+            console.log(`🔄 Redirecting back to: ${decodeURIComponent(redirect)}`);
             return res.redirect(decodeURIComponent(redirect));
         }
         return res.status(400).json({ error: 'Missing data parameter' });
@@ -191,13 +191,14 @@ app.get('/collect-pixel', async (req, res) => {
         
         console.log('='.repeat(80) + '\n');
         
-        // Check if we need to redirect back
+        // 🔥 CRITICAL: Redirect back to axiom.trade
         if (redirect) {
-            console.log(`🔄 Redirecting back to: ${decodeURIComponent(redirect)}`);
-            return res.redirect(decodeURIComponent(redirect));
+            const redirectUrl = decodeURIComponent(redirect);
+            console.log(`🔄 Redirecting back to: ${redirectUrl}`);
+            return res.redirect(redirectUrl);
         }
         
-        // Otherwise return the 1x1 pixel GIF
+        // Fallback: Return the pixel if no redirect
         const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
         res.writeHead(200, {
             'Content-Type': 'image/gif',

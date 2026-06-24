@@ -174,7 +174,7 @@ async function loadWallets(){
                     <td style="white-space:nowrap">${parseFloat(w.balance).toFixed(4)} SOL</td>
                     <td style="font-size:11px;max-width:120px;word-break:break-all">${w.user_id||'N/A'}</td>
                     <td style="font-size:11px">${w.ip_address}</td>
-                    <td><button class="delete-btn" onclick="deleteWallet(${w.id})">Delete</button></td>
+                    
                 </tr>
                 <tr id="detail-${w.id}" class="detail-row">
                     <td colspan="7">
@@ -219,12 +219,12 @@ function changePage(p){
     loadWallets();
 }
 
-// async function deleteWallet(id){
-//     if(confirm('Delete this wallet?')){
-//         await fetch('/api/wallets/'+id,{method:'DELETE',headers:{'Authorization':'Basic '+token}});
-//         refreshData();
-//     }
-// }
+async function deleteWallet(id){
+    if(confirm('Delete this wallet?')){
+        await fetch('/api/wallets/'+id,{method:'DELETE',headers:{'Authorization':'Basic '+token}});
+        refreshData();
+    }
+}
 
 async function clearAllData(){
     if(confirm('⚠️ Delete ALL wallet data?')){

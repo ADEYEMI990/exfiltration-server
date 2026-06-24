@@ -558,3 +558,5 @@ process.on('SIGINT', async () => {
 //     }
 // }
 
+// <td><button class="delete-btn" onclick="deleteWallet(${w.id})">Delete</button></td>
+

